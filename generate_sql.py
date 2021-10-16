@@ -1,114 +1,118 @@
-from re import A
 import xlrd
 import pyodbc
 
-book = xlrd.open_workbook('sne_dump.xlsx')
-result = []
+# Fazer a inclusao do SQL ou do DUMP (sys.argv[1]) no Banco antes de começar
 
-# Mapeamento das tabelas a serem inseridas
-inst_ensino = {
-    'CNPJ': 2,
-    'RAZAO': 3,
-    'FANTASIA': 4
-}
-campus = {
-    'UNIDADE': 5,
-    'SIGLA': 6,
-    'EMAIL': 7,
-    'TELEFONE': 8
-}
-cidade = {
-    'NAME': 10,
-    'IBGE': None,
-    'UF': 9
-}
-endereco = {
-    'CIDADE': cidade['NAME'],
-    'CEP': 11,
-    'LOGRADOURO': 12,
-    'BAIRRO': 13
-}
-responsavel = {
-    'RESPONSAVEL': 14,
-    'CPF_RESP': 15,
-    'TELEFONE_RESP': 16,
-    'EMAIL_RESP': 17,
-    'DATA_NASCIMENTO_RESP': 18,
-    'CARGO_RESP': 19
-}
-curso = {
-    'NIVEL': 20,
-    'CURSO': 21,
-    'DURACAO': 22,
-    'DT_LIBERACAO': 23,
-    'CARGA_HORARIA': 24,
-    'PERIODO_MAX': 25,
-    'PERIODICIDADE': 26,
-    'responsavel': 27,
-    'TURNO': 28,
-    'ESTAGIO_OBRIGATORIO': 29,
-    'REGISTRO_CONSELHO': 30
-}
+# Conferir se todas as linhas tem CNPJ, as que não tiverem devem ser apagadas
+
+book = xlrd.open_workbook('sne_dump.xlsx')
+# Se for parametro da chamada
+# book = xlrd.open_workbook(sys.argv[1])
+sheet = book.sheet_by_index(0)
 
 # Mapeamento das associativas
-inst_ensino_endereco = {
+# inst_ensino_endereco
+# campus_responsavel
+# campus_endereco
+# curso_responsavel
 
-}
-campus_responsavel = {
+def select_id(table, column_to_select, id_value):
+    # Seleciona tabela 1
+    query = f"SELECT * FROM {table} WHERE {column_to_select} = '{id_value}'"
+    id = execute_query(query)
+    id = id.fetchone()[0]
+    return id
 
-}
-campus_endereco = {
+# def join_tables(jointable, table1, table2, column1, column2, value1, value2, values):
+#     tableA = cursor.execute(f"SELECT * FROM {table1} WHERE {column1} = {value1}")
+#     tableB = cursor.execute(f"SELECT * FROM {table2} WHERE {column2} = {value2}")
+#     cursor.execute(f"INSERT INTO {jointable} VALUES ({tableA}, {tableB}, {values} )")
 
-}
-curso_responsavel = {
+def check_or_insert_into_table(table, column_to_check, id_value, columns_to_insert, values_to_insert):
+    if id_value != None:
+        found = execute_query(f"SELECT * FROM {table} WHERE {column_to_check} = '{id_value}'")
+        if found[0] == None:
+            query = f"INSERT INTO {table} ({columns_to_insert}) VALUES ({values_to_insert})"
+            execute_query(query)
 
-}
 
 # Connect to database
-    #;uid=sa;pwd=reallyStrongPwd123
-    #;Trusted_Connection=yes
-connection = pyodbc.connect(r'DRIVER={ODBC Driver 17 for SQL Server}; SERVER=0.0.0.0,5434; DATABASE=ielDBDev; TRUSTED_CONNECTION=yes;')
+connection = pyodbc.connect(r'DRIVER={ODBC Driver 17 for SQL Server}; SERVER=localhost,1433; DATABASE=ielDBDev; uid=sa; pwd=reallyStrongPwd1234#;')
 cursor=connection.cursor()
 
-def check_before_insert(table, column, value):
-    cursor.execute(f"SELECT * FROM {table} WHERE {column} = {value}")
+def execute_query(query):
+    # Execute query
+    cursor.execute("USE ielDBDev")
+    result = cursor.execute(query)
+    print(query)
+    connection.commit()
+    return result
 
-def join_tables(jointable, table1, table2, column1, column2, value1, value2, values):
-    tableA = cursor.execute(f"SELECT * FROM {table1} WHERE {column1} = {value1}")
-    tableB = cursor.execute(f"SELECT * FROM {table2} WHERE {column2} = {value2}")
-    cursor.execute(f"INSERT INTO {jointable} VALUES ({tableA}, {tableB}, {values} )")
+for row_num, row in enumerate[1:](sheet.get_rows()):
+    # Mapeamento das tabelas a serem inseridas
+    inst_ensino = dict(
+        CNPJ = row[2].value,
+        RAZAO = row[3].value,
+        FANTASIA = row[4].value
+    )
+    campus = dict(
+        UNIDADE = row[5].value,
+        SIGLA = row[6].value,
+        EMAIL = row[7].value,
+        TELEFONE = row[8].value
+    )
+    cidade = dict(
+        NAME = row[10].value.replace("'", ""),
+        IBGE = 1,
+        UF = row[9].value
+    )
+    endereco = dict(
+        CIDADE = cidade['NAME'],
+        CEP = row[11].value,
+        LOGRADOURO = row[12].value,
+        BAIRRO = row[13].value
+    )
+    responsavel = dict(
+        RESPONSAVEL = row[14].value,
+        CPF_RESP = row[15].value,
+        TELEFONE_RESP = row[16].value,
+        EMAIL_RESP = row[17].value,
+        DATA_NASCIMENTO_RESP = row[18].value,
+        CARGO_RESP = row[19].value
+    )
+    curso = dict(
+        NIVEL = row[20].value,
+        CURSO = row[21].value,
+        DURACAO = row[22].value,
+        DT_LIBERACAO = row[23].value,
+        CARGA_HORARIA = row[24].value,
+        PERIODO_MAX = row[25].value,
+        PERIODICIDADE = row[26].value,
+        responsavel = row[27].value,
+        TURNO = row[28].value,
+        ESTAGIO_OBRIGATORIO = row[29].value,
+        REGISTRO_CONSELHO = row[30].value
+    )
 
-
-def insert_into_table(table, values):
-    cursor.execute(f"INSERT INTO {table} VALUES ({values})")
-
-def check_or_insert_into_table(table, column, id_value, values):
-    found = cursor.execute(f"SELECT * FROM {table} WHERE {column} = {id_value}")
-    if len(found) != 0:
-        cursor.execute(f"INSERT INTO {table} VALUES ({values})")
-
-def process_row (row):
-    check_or_insert_into_table(cidade, "column", "values")
-    check_or_insert_into_table(responsavel, "column", "values")
-    check_or_insert_into_table(campus, "column", "values")
-    check_or_insert_into_table(inst_ensino, "column", "values")
-    check_or_insert_into_table(campus, "column", "values")
-    check_or_insert_into_table(inst_ensino_endereco, "column", "values")
-    check_or_insert_into_table(campus_responsavel, "column", "values")
-    check_or_insert_into_table(campus_endereco, "column", "values")
-    check_or_insert_into_table(curso_responsavel, "column", "values")
-
-sheet = book.sheets()[0]
-for row_num, row in enumerate(sheet.get_rows()):
     # Seleciona CNPJ
-    CNPJ = check_before_insert("educatonal_institution1", "CNPJ", inst_ensino['CNPJ'])
-    if len(CNPJ) == 0:
-        process_row(row)
+    CNPJ = execute_query(f"SELECT CNPJ FROM educational_institution1 WHERE CNPJ = {inst_ensino['CNPJ']}")
+    if CNPJ.fetchone()[0] == None:
+        # Insere cidades
+        check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
+        
+        # Insere Endereços
+        id = select_id("cities", "NAME", {cidade['NAME']})
+        check_or_insert_into_table("addresses", {endereco['CEP']}, {endereco['LOGRADOURO']}, 1, [{endereco['BAIRRO']}], id)
+        
+        # check_or_insert_into_table(responsavel, "column", "values")
+        # check_or_insert_into_table(campus, "column", "values")
+        # check_or_insert_into_table(inst_ensino, "column", "values")
+        # check_or_insert_into_table(campus, "column", "values")
+        # check_or_insert_into_table(inst_ensino_endereco, "column", "values")
+        # check_or_insert_into_table(campus_responsavel, "column", "values")
+        # check_or_insert_into_table(campus_endereco, "column", "values")
+        # check_or_insert_into_table(curso_responsavel, "column", "values")
     else:
         continue
-
-    #    result.append([row[inst_ensino['CNPJ']], row[inst_ensino['RAZAO']], row[inst_ensino['FANTASIA']]])
-    #    print(result)
-
 cursor.close()
 connection.close()
