@@ -2,7 +2,6 @@ import xlrd
 import pyodbc
 
 # Fazer a inclusao do SQL ou do DUMP (sys.argv[1]) no Banco antes de começar
-
 # Conferir se todas as linhas tem CNPJ, as que não tiverem devem ser apagadas
 
 book = xlrd.open_workbook('sne_dump.xlsx')
@@ -23,15 +22,16 @@ cursor=connection.cursor()
 def execute_query(query):
     # Execute query
     cursor.execute("USE ielDBDev")
-    result = cursor.execute(query)
     print(f"                      {query}")
+    result = cursor.execute(query)
     return result
 
 # Metodos de inclusao e manipulacao do BD
 def select_id(table, column_to_select, id_value):
-    # Seleciona tabela 1
-    id = execute_query(f"SELECT * FROM {table} WHERE {column_to_select} = '{id_value}'")
-    return id.fetchone()
+    id = execute_query(f"SELECT ID FROM {table} WHERE {column_to_select} = '{id_value}'")
+    id.fetchone()
+    id_string = execute_query(f"SELECT CONVERT(uniqueidentifier,'{id}'")
+    return id_string
 
 # def join_tables(jointable, table1, table2, column1, column2, value1, value2, values):
 #     tableA = cursor.execute(f"SELECT * FROM {table1} WHERE {column1} = {value1}")
@@ -43,12 +43,11 @@ def check_or_insert_into_table(table, column_to_check, id_value, columns_to_inse
         found = execute_query(f"SELECT * FROM {table} WHERE {column_to_check} = '{id_value}'")
         found = found.fetchall()
         if len(found) == 0:
-            print("entrou")
             execute_query(f"INSERT INTO {table} ({columns_to_insert}) VALUES ({values_to_insert})")
 
 with connection:
     # Processa o XLS e insere no BD
-    for row_num, row in enumerate[1:](sheet.get_rows()):
+    for row_num, row in enumerate[2:](sheet.get_rows()):
         # Mapeamento das tabelas a serem inseridas
         inst_ensino = dict(
             CNPJ = row[2].value,
@@ -101,8 +100,8 @@ with connection:
             check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
             
             # # Insere Endereços
-            id = select_id("cities", "NAME", f"{cidade['NAME']}")
-            check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, city_id", f"{endereco['CEP']}, {endereco['LOGRADOURO']}, NULL, {endereco['BAIRRO']}, {id}")
+            id = execute_query(f"SELECT ID FROM cities WHERE name = {cidade['NAME']}")
+            check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', {id}")
             
             # check_or_insert_into_table(inst_ensino_endereco, "column", "values")
             # check_or_insert_into_table(responsavel, "column", "values")
