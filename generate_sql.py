@@ -3,6 +3,7 @@ import pyodbc
 
 # Fazer a inclusao do SQL ou do DUMP (sys.argv[1]) no Banco antes de começar
 # Conferir se todas as linhas tem CNPJ, as que não tiverem devem ser apagadas
+# Limpar coluna prio e cadastrado se houver
 
 book = xlrd.open_workbook('sne_dump_long.xlsx')
 # Se for parametro da chamada
@@ -46,8 +47,13 @@ def check_or_insert_into_table(table, column_to_check, id_value, columns_to_inse
             execute_query(f"INSERT INTO {table} ({columns_to_insert}) VALUES ({values_to_insert})")
 
 def sanitize_entry(row):
-    for column in row[0:30]:
-        column.value.replace("'", "\'")
+    for i, column in enumerate(row):
+        if "'" in column.value:
+            execute_query("SET QUOTED_IDENTIFIER OFF;")
+            column.value = execute_query(f"SELECT REPLACE(\"{column.value}\", \"'\", \"\")")
+            execute_query("SET QUOTED_IDENTIFIER ON;")
+            print(column.value)
+    return row
 
 with connection:
     # Processa o XLS e insere no BD
@@ -58,47 +64,47 @@ with connection:
 
             # Mapeamento das tabelas a serem inseridas
             inst_ensino = dict(
-                CNPJ = row[2].value,
-                RAZAO = row[3].value,
-                FANTASIA = row[4].value
+                CNPJ = row[0].value,
+                RAZAO = row[1].value,
+                FANTASIA = row[2].value
             )
             campus = dict(
-                UNIDADE = row[5].value,
-                SIGLA = row[6].value,
-                EMAIL = row[7].value,
-                TELEFONE = row[8].value
+                UNIDADE = row[3].value,
+                SIGLA = row[4].value,
+                EMAIL = row[5].value,
+                TELEFONE = row[6].value
             )
             cidade = dict(
-                NAME = row[10].value,
+                NAME = row[8].value,
                 IBGE = 1,
-                UF = row[9].value
+                UF = row[7].value
             )
             endereco = dict(
-                CIDADE = row[10].value,
-                CEP = row[11].value,
-                LOGRADOURO = row[12].value,
-                BAIRRO = row[13].value
+                CIDADE = row[8].value,
+                CEP = row[9].value,
+                LOGRADOURO = row[10].value,
+                BAIRRO = row[11].value
             )
             responsavel = dict(
-                RESPONSAVEL = row[14].value,
-                CPF_RESP = row[15].value,
-                TELEFONE_RESP = row[16].value,
-                EMAIL_RESP = row[17].value,
-                DATA_NASCIMENTO_RESP = row[18].value,
-                CARGO_RESP = row[19].value
+                RESPONSAVEL = row[12].value,
+                CPF_RESP = row[13].value,
+                TELEFONE_RESP = row[14].value,
+                EMAIL_RESP = row[15].value,
+                DATA_NASCIMENTO_RESP = row[16].value,
+                CARGO_RESP = row[17].value
             )
             curso = dict(
-                NIVEL = row[20].value,
-                CURSO = row[21].value,
-                DURACAO = row[22].value,
-                DT_LIBERACAO = row[23].value,
-                CARGA_HORARIA = row[24].value,
-                PERIODO_MAX = row[25].value,
-                PERIODICIDADE = row[26].value,
-                responsavel = row[27].value,
-                TURNO = row[28].value,
-                ESTAGIO_OBRIGATORIO = row[29].value,
-                REGISTRO_CONSELHO = row[30].value
+                NIVEL = row[18].value,
+                CURSO = row[19].value,
+                DURACAO = row[20].value,
+                DT_LIBERACAO = row[21].value,
+                CARGA_HORARIA = row[22].value,
+                PERIODO_MAX = row[23].value,
+                PERIODICIDADE = row[24].value,
+                responsavel = row[25].value,
+                TURNO = row[26].value,
+                ESTAGIO_OBRIGATORIO = row[27].value,
+                REGISTRO_CONSELHO = row[28].value
             )
 
             # Seleciona CNPJ
@@ -111,21 +117,24 @@ with connection:
                 cursor = execute_query(f"SELECT ID FROM cities WHERE name = '{cidade['NAME']}'")
                 check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cursor.fetchall()[0][0]}'")
                 
-                # check_or_insert_into_table(inst_ensino_endereco, "column", "values")
                 # check_or_insert_into_table(responsavel, "column", "values")
-                # check_or_insert_into_table(campus, "column", "values")
+                
                 # check_or_insert_into_table(inst_ensino, "column", "values")
+                # check_or_insert_into_table(inst_ensino_endereco, "column", "values")
+                
                 # check_or_insert_into_table(campus, "column", "values")
                 # check_or_insert_into_table(campus_responsavel, "column", "values")
                 # check_or_insert_into_table(campus_endereco, "column", "values")
+                
+                # check_or_insert_into_table(curso, "column", "values")
                 # check_or_insert_into_table(curso_responsavel, "column", "values")
             else:
                 continue
+        connection.commit()
         print(f"{i}  >>>>>>>>>>>>>")
 
 # Finaliza a conexao com o BD
 cursor.close()
-connection.commit()
 connection.close()
 
 # Finaliza execucao
