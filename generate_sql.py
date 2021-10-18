@@ -47,7 +47,10 @@ def check_or_insert_into_table(table, column_to_check, id_value, columns_to_inse
 
 with connection:
     # Processa o XLS e insere no BD
-    for row_num, row in enumerate[2:](sheet.get_rows()):
+    sheet_rows = sheet.get_rows()
+    sheet_rows = iter(sheet_rows)
+    next(sheet_rows)
+    for i, row in sheet_rows[1:]():
         # Mapeamento das tabelas a serem inseridas
         inst_ensino = dict(
             CNPJ = row[2].value,
@@ -97,6 +100,7 @@ with connection:
         CNPJ = execute_query(f"SELECT CNPJ FROM educational_institution1 WHERE CNPJ = {inst_ensino['CNPJ']}")
         if CNPJ.fetchone() == None:
             # # Insere cidades
+            print(f"{cidade['NAME']}")
             check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
             
             # # Insere Endereços
@@ -113,7 +117,7 @@ with connection:
             # check_or_insert_into_table(curso_responsavel, "column", "values")
         else:
             continue
-        print(f"Linha {row_num} processada com sucesso")
+        print(f"{i}  >>>>>>>>>>>>>")
 
 # Finaliza a conexao com o BD
 cursor.close()
