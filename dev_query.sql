@@ -1,7 +1,11 @@
 use ielDBDev;
-SELECT * FROM cities, addresses
+SELECT id, name,ibge,uf FROM cities
+SELECT id, postal_code, district, number,complement,city_id FROM addresses
+SELECT id, responsible_name, responsible_cpf, responsible_email, responsible_birthday_date, responsible_occupation, responsible_phone FROM responsible
+SELECT id, company_name, fantasy_name, cnpj, address_id FROM educational_institution1
 
 DELETE FROM dbo.cities  WHERE id IS NOT NULL
 DELETE FROM dbo.addresses WHERE id IS NOT NULL
+DELETE FROM dbo.responsible WHERE id IS NOT NULL
+DELETE FROM dbo.educational_institution1 WHERE id IS NOT NULL
 
-SELECT * FROM cities WHERE name = REPLACE('Santa Bárbara D\'Oeste', '\'', '\'\'')

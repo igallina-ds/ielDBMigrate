@@ -1,9 +1,11 @@
 import xlrd
 import pyodbc
+import datetime
 
 # Fazer a inclusao do SQL ou do DUMP (sys.argv[1]) no Banco antes de começar
 # Conferir se todas as linhas tem CNPJ, as que não tiverem devem ser apagadas
 # Limpar coluna prio e cadastrado se houver
+# Precisa haver uma unidade do IEL cadastrada
 
 book = xlrd.open_workbook('sne_dump_long.xlsx')
 # Se for parametro da chamada
@@ -28,11 +30,6 @@ def execute_query(query):
     return result
 
 # Metodos de inclusao e manipulacao do BD
-def select_id(table, column_to_select, id_value):
-    id = execute_query(f"SELECT ID FROM {table} WHERE {column_to_select} = '{id_value}'")
-    id.fetchone()
-    id_string = execute_query(f"SELECT CONVERT(uniqueidentifier,'{id}'")
-    return id_string
 
 # def join_tables(jointable, table1, table2, column1, column2, value1, value2, values):
 #     tableA = cursor.execute(f"SELECT * FROM {table1} WHERE {column1} = {value1}")
@@ -52,10 +49,18 @@ def sanitize_entry(row):
             execute_query("SET QUOTED_IDENTIFIER OFF;")
             column.value = execute_query(f"SELECT REPLACE(\"{column.value}\", \"'\", \"\")")
             execute_query("SET QUOTED_IDENTIFIER ON;")
-            print(column.value)
+        if i == 0 and type(column.value) == str:
+            column.value = int(column.value)
     return row
 
 with connection:
+    # Config do SQL Server
+    execute_query("SET ARITHIGNORE OFF")
+    # Insere IEL Nacional
+    execute_query("INSERT INTO iel_units (type, cnpj, company_name) VALUES ('DN', '02777249000133', 'IEL Nacional')")
+    
+    last_cnpj = []
+
     # Processa o XLS e insere no BD
     for i, row in enumerate(sheet.get_rows()):
         if i != 0:
@@ -86,7 +91,7 @@ with connection:
                 BAIRRO = row[11].value
             )
             responsavel = dict(
-                RESPONSAVEL = row[12].value,
+                NOME_RESPONSAVEL = row[12].value,
                 CPF_RESP = row[13].value,
                 TELEFONE_RESP = row[14].value,
                 EMAIL_RESP = row[15].value,
@@ -108,19 +113,23 @@ with connection:
             )
 
             # Seleciona CNPJ
-            CNPJ = execute_query(f"SELECT CNPJ FROM educational_institution1 WHERE CNPJ = {inst_ensino['CNPJ']}")
-            if CNPJ.fetchone() == None:
-                # Insere cidades
+            CNPJ = execute_query(f"SELECT CNPJ FROM educational_institution1 WHERE CNPJ = '{inst_ensino['CNPJ']}'")
+            if last_cnpj != CNPJ or CNPJ.fetchone() == None:
+                last_cnpj = CNPJ
+                # Insere Cidades
                 check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
 
                 # Insere Endereços
-                cursor = execute_query(f"SELECT ID FROM cities WHERE name = '{cidade['NAME']}'")
-                check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cursor.fetchall()[0][0]}'")
-                
-                # check_or_insert_into_table(responsavel, "column", "values")
-                
-                # check_or_insert_into_table(inst_ensino, "column", "values")
-                # check_or_insert_into_table(inst_ensino_endereco, "column", "values")
+                cidade_end_id = execute_query(f"SELECT ID FROM cities WHERE name = '{cidade['NAME']}'")
+                check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cidade_end_id.fetchall()[0][0]}'")
+
+                # Insere Responsavel
+                check_or_insert_into_table("responsible", "RESPONSIBLE_CPF", f"{responsavel['CPF_RESP']}", "responsible_name, responsible_cpf, responsible_phone, responsible_email, responsible_birthday_date, responsible_occupation", f"'{responsavel['NOME_RESPONSAVEL']}', '{responsavel['CPF_RESP']}', '{responsavel['TELEFONE_RESP']}', '{responsavel['EMAIL_RESP']}', CONVERT(DATETIME2, '{responsavel['DATA_NASCIMENTO_RESP']}', 103), '{responsavel['CARGO_RESP']}'")
+
+                # Get Endereco Inst. Ensino
+                endereco_id = execute_query(f"SELECT ID FROM addresses WHERE postal_code = '{endereco['CEP']}'")
+                # Insere Instituicao de Ensino
+                check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id.fetchall()[0][0]}'")
                 
                 # check_or_insert_into_table(campus, "column", "values")
                 # check_or_insert_into_table(campus_responsavel, "column", "values")
