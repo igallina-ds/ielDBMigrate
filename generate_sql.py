@@ -1,6 +1,5 @@
 import xlrd
 import pyodbc
-import datetime
 
 # Fazer a inclusao do SQL ou do DUMP (sys.argv[1]) no Banco antes de começar
 # Conferir se todas as linhas tem CNPJ, as que não tiverem devem ser apagadas
@@ -12,62 +11,54 @@ book = xlrd.open_workbook('sne_dump_long.xlsx')
 # book = xlrd.open_workbook(sys.argv[1])
 sheet = book.sheet_by_index(0)
 
+# import ipdb; ipdb.set_trace()
+
 # Connect to database
 connection = pyodbc.connect(r'DRIVER={ODBC Driver 17 for SQL Server}; SERVER=localhost,1433; DATABASE=ielDBDev; uid=sa; pwd=reallyStrongPwd1234#;')
-cursor=connection.cursor()
+cursor = connection.cursor()
+cursor.execute("USE ielDBDev")
 
-# Mapeamento das associativas
-# inst_ensino_endereco
-# campus_responsavel
-# campus_endereco
-# curso_responsavel
-
-def execute_query(query):
-    # Execute query
-    cursor.execute("USE ielDBDev")
-    print(f"                      {query}")
-    result = cursor.execute(query)
+def select_query(query):
+    # print(f"         {query}")
+    result = list(cursor.execute(query))
     return result
 
-# Metodos de inclusao e manipulacao do BD
+def commit_query(query):
+    print(f"         {query}")
+    cursor.execute(query)
+    connection.commit()
 
-# def join_tables(jointable, table1, table2, column1, column2, value1, value2, values):
-#     tableA = cursor.execute(f"SELECT * FROM {table1} WHERE {column1} = {value1}")
-#     tableB = cursor.execute(f"SELECT * FROM {table2} WHERE {column2} = {value2}")
-#     cursor.execute(f"INSERT INTO {jointable} VALUES ({tableA}, {tableB}, {values} )")
+def set_query(query):
+    # print(f"         {query}")
+    cursor.execute(query)
 
 def check_or_insert_into_table(table, column_to_check, id_value, columns_to_insert, values_to_insert):
     if id_value != None:
-        found = execute_query(f"SELECT * FROM {table} WHERE {column_to_check} = '{id_value}'")
-        found = found.fetchall()
+        found = select_query(f"SELECT ID FROM {table} WHERE {column_to_check} = '{id_value}'")
         if len(found) == 0:
-            execute_query(f"INSERT INTO {table} ({columns_to_insert}) VALUES ({values_to_insert})")
+            commit_query(f"INSERT INTO {table} ({columns_to_insert}) VALUES ({values_to_insert})")
 
 def sanitize_entry(row):
     for i, column in enumerate(row):
+        column.value = column.value.strip()
         if "'" in column.value:
-            execute_query("SET QUOTED_IDENTIFIER OFF;")
-            column.value = execute_query(f"SELECT REPLACE(\"{column.value}\", \"'\", \"\")")
-            execute_query("SET QUOTED_IDENTIFIER ON;")
-        if i == 0 and type(column.value) == str:
-            column.value = int(column.value)
+            set_query("SET QUOTED_IDENTIFIER OFF;")
+            column.value = select_query(f"SELECT REPLACE(\"{column.value}\", \"'\", \"\")")
+            set_query("SET QUOTED_IDENTIFIER ON;")
+            column.value = column.value[0][0]
     return row
 
 with connection:
     # Config do SQL Server
-    execute_query("SET ARITHIGNORE OFF")
+    # select_query("SET ARITHIGNORE OFF")
     # Insere IEL Nacional
-    execute_query("INSERT INTO iel_units (type, cnpj, company_name) VALUES ('DN', '02777249000133', 'IEL Nacional')")
-    
-    last_cnpj = []
+    iel_id = commit_query("INSERT INTO iel_units (type, cnpj, company_name) VALUES ('DN', '02777249000133', 'IEL Nacional')")
 
     # Processa o XLS e insere no BD
     for i, row in enumerate(sheet.get_rows()):
         if i != 0:
-            # Limpa valores errados e aspas
             row = sanitize_entry(row)
 
-            # Mapeamento das tabelas a serem inseridas
             inst_ensino = dict(
                 CNPJ = row[0].value,
                 RAZAO = row[1].value,
@@ -106,41 +97,44 @@ with connection:
                 CARGA_HORARIA = row[22].value,
                 PERIODO_MAX = row[23].value,
                 PERIODICIDADE = row[24].value,
-                responsavel = row[25].value,
+                RESPONSAVEL_CURSO = row[25].value,
                 TURNO = row[26].value,
                 ESTAGIO_OBRIGATORIO = row[27].value,
                 REGISTRO_CONSELHO = row[28].value
             )
 
-            # Seleciona CNPJ
-            CNPJ = execute_query(f"SELECT CNPJ FROM educational_institution1 WHERE CNPJ = '{inst_ensino['CNPJ']}'")
-            if last_cnpj != CNPJ or CNPJ.fetchone() == None:
-                last_cnpj = CNPJ
-                # Insere Cidades
-                check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
+            # Insere Cidades
+            check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
 
-                # Insere Endereços
-                cidade_end_id = execute_query(f"SELECT ID FROM cities WHERE name = '{cidade['NAME']}'")
-                check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cidade_end_id.fetchall()[0][0]}'")
+            # Insere Endereços
+            cidade_end_id = select_query(f"SELECT ID FROM cities WHERE name = '{cidade['NAME']}'")
+            check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cidade_end_id[0][0]}'")
 
-                # Insere Responsavel
-                check_or_insert_into_table("responsible", "RESPONSIBLE_CPF", f"{responsavel['CPF_RESP']}", "responsible_name, responsible_cpf, responsible_phone, responsible_email, responsible_birthday_date, responsible_occupation", f"'{responsavel['NOME_RESPONSAVEL']}', '{responsavel['CPF_RESP']}', '{responsavel['TELEFONE_RESP']}', '{responsavel['EMAIL_RESP']}', CONVERT(DATETIME2, '{responsavel['DATA_NASCIMENTO_RESP']}', 103), '{responsavel['CARGO_RESP']}'")
+            # Insere Responsavel
+            check_or_insert_into_table("responsible", "RESPONSIBLE_CPF", f"{responsavel['CPF_RESP']}", "responsible_name, responsible_cpf, responsible_phone, responsible_email, responsible_birthday_date, responsible_occupation", f"'{responsavel['NOME_RESPONSAVEL']}', '{responsavel['CPF_RESP']}', '{responsavel['TELEFONE_RESP']}', '{responsavel['EMAIL_RESP']}', CONVERT(DATETIME2, '{responsavel['DATA_NASCIMENTO_RESP']}', 103), '{responsavel['CARGO_RESP']}'")
 
-                # Get Endereco Inst. Ensino
-                endereco_id = execute_query(f"SELECT ID FROM addresses WHERE postal_code = '{endereco['CEP']}'")
-                # Insere Instituicao de Ensino
-                check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id.fetchall()[0][0]}'")
-                
-                # check_or_insert_into_table(campus, "column", "values")
-                # check_or_insert_into_table(campus_responsavel, "column", "values")
-                # check_or_insert_into_table(campus_endereco, "column", "values")
-                
-                # check_or_insert_into_table(curso, "column", "values")
-                # check_or_insert_into_table(curso_responsavel, "column", "values")
-            else:
-                continue
-        connection.commit()
-        print(f"{i}  >>>>>>>>>>>>>")
+            # Insere Instituicao de Ensino
+            endereco_id = select_query(f"SELECT ID FROM addresses WHERE postal_code = '{endereco['CEP']}'")
+            check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id[0][0]}'")
+            # associa inst_ensino_endereco
+            
+
+            # Insere Campus
+            inst_ensino_id = select_query(f"SELECT ID FROM educational_institution1 WHERE cnpj = '{inst_ensino['CNPJ']}'")
+            check_or_insert_into_table("campi", "name", campus['UNIDADE'], "name, initials, phone, address_id, educational_institution_id", f"'{campus['UNIDADE']}', '{campus['SIGLA']}', '{campus['TELEFONE']}', '{endereco_id[0][0]}', '{inst_ensino_id[0][0]}'")
+            
+            # Insere Curso
+            campus_id = select_query(f"SELECT ID FROM campi WHERE name = '{campus['UNIDADE']}'")
+            set_query("SET IDENTITY_INSERT dbo.courses ON;")
+            check_or_insert_into_table("courses", "name", f"{curso['CURSO']}", "name, frequency, shift, duration, from_which_period_is_released, maximum_weekly_hourly_allowed, maximum_month_internship_period, is_record_advice_supervisor, level, code, mandatory_internship, modality, campi_id, educational_institution_id", f"'{curso['CURSO']}', '{curso['PERIODICIDADE']}', 1, {curso['DURACAO']}, {curso['DT_LIBERACAO']}, {curso['CARGA_HORARIA']}, {curso['PERIODO_MAX']}, 1, '{curso['NIVEL']}', 1, 1, 1, '{campus_id[0][0]}', '{inst_ensino_id[0][0]}'")
+            set_query("SET IDENTITY_INSERT dbo.courses OFF;")
+
+            # course_id = select_query(f"SELECT ID FROM course WHERE name = '{curso['CURSO']}'")
+            # associa campus_responsavel
+            # associa campus_endereco
+            # associa curso_responsavel
+
+        print(f"{i}  >>>           ")
 
 # Finaliza a conexao com o BD
 cursor.close()
