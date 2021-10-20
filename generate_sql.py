@@ -2,7 +2,6 @@ import xlrd
 import pyodbc
 
 # Fazer a inclusao do SQL ou do DUMP (sys.argv[1]) no Banco antes de começar
-# Conferir se todas as linhas tem CNPJ, as que não tiverem devem ser apagadas
 # Limpar coluna prio e cadastrado se houver
 # Precisa haver uma unidade do IEL cadastrada
 
@@ -14,9 +13,9 @@ sheet = book.sheet_by_index(0)
 # import ipdb; ipdb.set_trace()
 
 # Connect to database
-connection = pyodbc.connect(r'DRIVER={ODBC Driver 17 for SQL Server}; SERVER=localhost,1433; DATABASE=ielDBDev; uid=sa; pwd=reallyStrongPwd1234#;')
+connection = pyodbc.connect(r'DRIVER={ODBC Driver 17 for SQL Server}; SERVER=localhost,1433; DATABASE=IEL_Estagio_PRD; uid=sa; pwd=reallyStrongPwd1234#;')
 cursor = connection.cursor()
-cursor.execute("USE ielDBDev")
+cursor.execute("USE IEL_Estagio_PRD")
 
 def select_query(query):
     # print(f"         {query}")
@@ -49,10 +48,9 @@ def sanitize_entry(row):
     return row
 
 with connection:
-    # Config do SQL Server
-    # select_query("SET ARITHIGNORE OFF")
-    # Insere IEL Nacional
-    iel_id = commit_query("INSERT INTO iel_units (type, cnpj, company_name) VALUES ('DN', '02777249000133', 'IEL Nacional')")
+    # Seleciona IEL Sao Paulo
+    iel_id = select_query("SELECT ID FROM iel_units WHERE cnpj = '33938861000336'")
+    iel_id = iel_id[0][0]
 
     # Processa o XLS e insere no BD
     for i, row in enumerate(sheet.get_rows()):
@@ -106,33 +104,47 @@ with connection:
             # Insere Cidades
             check_or_insert_into_table("cities", "NAME", f"{cidade['NAME']}", "NAME, IBGE, UF", f"'{cidade['NAME']}', {cidade['IBGE']}, '{cidade['UF']}'")
 
-            # Insere Endereços
+            # Prepara pra inserir Endereços
             cidade_end_id = select_query(f"SELECT ID FROM cities WHERE name = '{cidade['NAME']}'")
-            check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cidade_end_id[0][0]}'")
+            cidade_end_id = cidade_end_id[0][0]
+            # Insere Endereços
+            check_or_insert_into_table("addresses", "POSTAL_CODE", f"{endereco['CEP']}", "POSTAL_CODE, DISTRICT, NUMBER, COMPLEMENT, CITY_ID", f"'{endereco['CEP']}', '{endereco['LOGRADOURO']}', NULL, '{endereco['BAIRRO']}', '{cidade_end_id}'")
 
             # Insere Responsavel
             check_or_insert_into_table("responsible", "RESPONSIBLE_CPF", f"{responsavel['CPF_RESP']}", "responsible_name, responsible_cpf, responsible_phone, responsible_email, responsible_birthday_date, responsible_occupation", f"'{responsavel['NOME_RESPONSAVEL']}', '{responsavel['CPF_RESP']}', '{responsavel['TELEFONE_RESP']}', '{responsavel['EMAIL_RESP']}', CONVERT(DATETIME2, '{responsavel['DATA_NASCIMENTO_RESP']}', 103), '{responsavel['CARGO_RESP']}'")
+            resp_id = select_query(f"SELECT ID FROM responsible WHERE responsible_cpf = '{responsavel['CPF_RESP']}'")
+            resp_id = resp_id[0][0]
 
-            # Insere Instituicao de Ensino
+            # Prepara pra inserir Instituicao de Ensino
             endereco_id = select_query(f"SELECT ID FROM addresses WHERE postal_code = '{endereco['CEP']}'")
-            check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id[0][0]}'")
+            endereco_id = endereco_id[0][0]
+            # Insere Instituicao de Ensino
+            check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id, iel_unit_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id}', '{iel_id}'")
             # associa inst_ensino_endereco
             
-
-            # Insere Campus
+            # Prepara pr inserir Campus
             inst_ensino_id = select_query(f"SELECT ID FROM educational_institution1 WHERE cnpj = '{inst_ensino['CNPJ']}'")
-            check_or_insert_into_table("campi", "name", campus['UNIDADE'], "name, initials, phone, address_id, educational_institution_id", f"'{campus['UNIDADE']}', '{campus['SIGLA']}', '{campus['TELEFONE']}', '{endereco_id[0][0]}', '{inst_ensino_id[0][0]}'")
+            inst_ensino_id = inst_ensino_id[0][0]
+            # Insere Campus
+            check_or_insert_into_table("campi", "name", campus['UNIDADE'], "name, initials, phone, address_id, educational_institution_id", f"'{campus['UNIDADE']}', '{campus['SIGLA']}', '{campus['TELEFONE']}', '{endereco_id}', '{inst_ensino_id}'")
             
-            # Insere Curso
+            # Prepara pra inserir Curso
             campus_id = select_query(f"SELECT ID FROM campi WHERE name = '{campus['UNIDADE']}'")
+            campus_id = campus_id[0][0]
+            # Insere Curso
             set_query("SET IDENTITY_INSERT dbo.courses ON;")
-            check_or_insert_into_table("courses", "name", f"{curso['CURSO']}", "name, frequency, shift, duration, from_which_period_is_released, maximum_weekly_hourly_allowed, maximum_month_internship_period, is_record_advice_supervisor, level, code, mandatory_internship, modality, campi_id, educational_institution_id", f"'{curso['CURSO']}', '{curso['PERIODICIDADE']}', 1, {curso['DURACAO']}, {curso['DT_LIBERACAO']}, {curso['CARGA_HORARIA']}, {curso['PERIODO_MAX']}, 1, '{curso['NIVEL']}', 1, 1, 1, '{campus_id[0][0]}', '{inst_ensino_id[0][0]}'")
+            check_or_insert_into_table("courses", "name", f"{curso['CURSO']}", "name, frequency, shift, duration, from_which_period_is_released, maximum_weekly_hourly_allowed, maximum_month_internship_period, is_record_advice_supervisor, level, code, mandatory_internship, modality, campi_id, educational_institution_id", f"'{curso['CURSO']}', '{curso['PERIODICIDADE']}', 1, {curso['DURACAO']}, {curso['DT_LIBERACAO']}, {curso['CARGA_HORARIA']}, {curso['PERIODO_MAX']}, 1, '{curso['NIVEL']}', 1, 1, 1, '{campus_id}', '{inst_ensino_id}'")
             set_query("SET IDENTITY_INSERT dbo.courses OFF;")
 
-            # course_id = select_query(f"SELECT ID FROM course WHERE name = '{curso['CURSO']}'")
+            # Prepara pra inserir associacoes
+            course_id = select_query(f"SELECT ID FROM courses WHERE name = '{curso['CURSO']}'")
+            course_id = course_id[0][0]
             # associa campus_responsavel
+            commit_query(f"INSERT INTO campi_responsible (campi_id, responsible_id) VALUES ('{campus_id}', '{resp_id}')")
             # associa campus_endereco
+            commit_query(f"INSERT INTO educational_institution_responsible (educational_institution_id, responsible_id) VALUES ('{inst_ensino_id}', '{resp_id}')")
             # associa curso_responsavel
+            commit_query(f"INSERT INTO courses_responsible (courses_id, responsible_id) VALUES ('{course_id}', '{resp_id}')")
 
         print(f"{i}  >>>           ")
 

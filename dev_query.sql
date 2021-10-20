@@ -6,9 +6,13 @@ SELECT id, company_name, fantasy_name, cnpj, address_id FROM educational_institu
 SELECT id, name, initials, phone FROM campi
 SELECT id, name, frequency, duration, level, modality FROM courses
 
+use ielDBDev;
+DELETE FROM dbo.campi_responsible WHERE id IS NOT NULL
+DELETE FROM dbo.educational_institution_responsible WHERE id IS NOT NULL
+DELETE FROM dbo.courses_responsible WHERE id IS NOT NULL
 DELETE FROM dbo.cities  WHERE id IS NOT NULL
+DELETE FROM dbo.addresses WHERE id IS NOT NULL
 DELETE FROM dbo.campi WHERE id IS NOT NULL
 DELETE FROM dbo.courses WHERE id IS NOT NULL
-DELETE FROM dbo.addresses WHERE id IS NOT NULL
 DELETE FROM dbo.responsible WHERE id IS NOT NULL
 DELETE FROM dbo.educational_institution1 WHERE id IS NOT NULL
