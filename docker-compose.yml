@@ -4,13 +4,13 @@ services:
   db:
     image: mcr.microsoft.com/mssql/server:2017-latest
     environment:
-      - SA_PASSWORD=reallyStrongPwd123
+      - SA_PASSWORD=reallyStrongPwd1234#
       - ACCEPT_EULA=Y
     ports:
-      - "5434:1433"
+      - "1433:1433"
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:9876
+    command: python manage.py
     volumes:
     - .:/code
     ports:

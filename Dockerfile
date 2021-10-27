@@ -18,8 +18,6 @@ RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 
-COPY . /iel_db_migrate/
+COPY . /ielDBMigrate/
 
-CMD  ["python3", "manage.py", "runserver", "0.0.0.0:9876"]
-
-
+CMD  ["python3", "manage.py"]
