@@ -119,7 +119,7 @@ with connection:
             endereco_id = select_query(f"SELECT ID FROM addresses WHERE postal_code = '{endereco['CEP']}'")
             endereco_id = endereco_id[0][0]
             # Insere Instituicao de Ensino
-            check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id, iel_unit_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id}', '{iel_id}'")
+            check_or_insert_into_table("educational_institution1", "cnpj", inst_ensino['CNPJ'], "cnpj, company_name, fantasy_name, address_id, iel_unity_id", f"'{inst_ensino['CNPJ']}', '{inst_ensino['RAZAO']}', '{inst_ensino['FANTASIA']}', '{endereco_id}', '{iel_id}'")
             # associa inst_ensino_endereco
             
             # Prepara pr inserir Campus
