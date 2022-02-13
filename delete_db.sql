@@ -1,0 +1,8 @@
+DELETE FROM [ielDB_new].[dbo].[campi_responsible]
+DELETE FROM [ielDB_new].[dbo].[courses_responsible]
+DELETE FROM [ielDB_new].[dbo].[responsible]
+DELETE FROM [ielDB_new].[dbo].[addresses]
+DELETE FROM [ielDB_new].[dbo].[campi]
+DELETE FROM [ielDB_new].[dbo].[courses]
+DELETE FROM [ielDB_new].[dbo].[educational_institution_responsible]
+DELETE FROM [ielDB_new].[dbo].[educational_institution1]
